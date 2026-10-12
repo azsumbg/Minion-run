@@ -41,6 +41,9 @@ constexpr int record{ 2003 };
 
 WNDCLASS bWinClass{};
 HINSTANCE bIns{ nullptr };
+HMENU bBar{ nullptr };
+HMENU bMain{ nullptr };
+HMENU bStore{ nullptr };
 HICON bIcon{ nullptr };
 HCURSOR bCursor{ nullptr };
 HCURSOR outCursor{ nullptr };
@@ -82,6 +85,8 @@ bool level_skipped = false;
 bool hero_killed = false;
 
 wchar_t current_player[16]{ L"TARLYO" };
+
+dirs nature_dir = dirs::stop;
 
 int score{ 0 };
 float level{ 1.0f };
@@ -272,6 +277,8 @@ void InitGame()
 	
 	//////////////////////////////////////
 
+	nature_dir = dirs::stop;
+
 	need_background_left = false;
 	need_background_right = false;
 
@@ -356,11 +363,281 @@ INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 
 	return (INT_PTR)(FALSE);
 }
+LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (ReceivedMsg)
+	{
+	case WM_CREATE:
+		if (bIns)
+		{
+			SetTimer(hwnd, bTimer, 500, NULL);
+
+			bBar = CreateMenu();
+			bMain = CreateMenu();
+			bStore = CreateMenu();
+
+			AppendMenu(bBar, MF_POPUP, (UINT_PTR)(bMain), L"Основно меню");
+			AppendMenu(bBar, MF_POPUP, (UINT_PTR)(bStore), L"Меню за данни");
+
+			AppendMenu(bMain, MF_STRING, mNew, L"Нова игра");
+			AppendMenu(bMain, MF_STRING, mLvl, L"Следващо ниво");
+			AppendMenu(bMain, MF_SEPARATOR, NULL, NULL);
+			AppendMenu(bMain, MF_STRING, mExit, L"Изход");
+
+			AppendMenu(bStore, MF_STRING, mSave, L"Запази игра");
+			AppendMenu(bStore, MF_STRING, mLoad, L"Зареди игра");
+			AppendMenu(bStore, MF_SEPARATOR, NULL, NULL);
+			AppendMenu(bStore, MF_STRING, mHoF, L"Зала на славата");
+
+			SetMenu(hwnd, bBar);
+			InitGame();
+		}
+		break;
+
+	case WM_CLOSE:
+		pause = true;
+		if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+		if (MessageBox(hwnd, L"Ако излезеш, губиш настоящата игра !\n\nНаистина ли излизаш ?", L"Изход",
+			MB_YESNO | MB_APPLMODAL | MB_ICONQUESTION) == IDNO)
+		{
+			pause = false;
+			break;
+		}
+		GameOver();
+		break;
+
+	case WM_SETCURSOR:
+		GetCursorPos(&cur_pos);
+		ScreenToClient(hwnd, &cur_pos);
+		if (LOWORD(lParam) == HTCLIENT)
+		{
+			if (!in_client)
+			{
+				in_client = true;
+				pause = false;
+			}
+
+			if (cur_pos.y * y_scale <= 50)
+			{
+				if (cur_pos.x * x_scale >= b1Rect.left && cur_pos.x * x_scale <= b1Rect.right)
+				{
+					if (!b1Hglt)
+					{
+						if (sound)mciSendString(L"play .\\res\\snd\\click.wav", NULL, NULL, NULL);
+						b1Hglt = true;
+						b2Hglt = false;
+						b3Hglt = false;
+					}
+				}
+				else if (cur_pos.x * x_scale >= b2Rect.left && cur_pos.x * x_scale <= b2Rect.right)
+				{
+					if (!b2Hglt)
+					{
+						if (sound)mciSendString(L"play .\\res\\snd\\click.wav", NULL, NULL, NULL);
+						b1Hglt = false;
+						b2Hglt = true;
+						b3Hglt = false;
+					}
+				}
+				else if (cur_pos.x * x_scale >= b3Rect.left && cur_pos.x * x_scale <= b3Rect.right)
+				{
+					if (!b3Hglt)
+					{
+						if (sound)mciSendString(L"play .\\res\\snd\\click.wav", NULL, NULL, NULL);
+						b1Hglt = false;
+						b2Hglt = false;
+						b3Hglt = true;
+					}
+				}
+				else
+				{
+					if (b1Hglt || b2Hglt || b3Hglt)
+					{
+						if (sound)mciSendString(L"play .\\res\\snd\\click.wav", NULL, NULL, NULL);
+						b1Hglt = false;
+						b2Hglt = false;
+						b3Hglt = false;
+					}
+				}
+
+				SetCursor(outCursor);
+				return true;
+			}
+			else if (b1Hglt || b2Hglt || b3Hglt)
+			{
+				if (sound)mciSendString(L"play .\\res\\snd\\click.wav", NULL, NULL, NULL);
+				b1Hglt = false;
+				b2Hglt = false;
+				b3Hglt = false;
+			}
+			
+			SetCursor(bCursor);
+
+			return true;
+		}
+		else
+		{
+			if (in_client)
+			{
+				in_client = false;
+				pause = true;
+			}
+
+			if (b1Hglt || b2Hglt || b3Hglt)
+			{
+				if (sound)mciSendString(L"play .\\res\\snd\\click.wav", NULL, NULL, NULL);
+				b1Hglt = false;
+				b2Hglt = false;
+				b3Hglt = false;
+			}
+
+			SetCursor(LoadCursor(NULL, IDC_ARROW));
+
+			return true;
+		}
+		break;
+
+	case WM_TIMER:
+		if (pause)break;
+		--distance;
+		break;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case mNew:
+			pause = true;
+			if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+			if (MessageBox(hwnd, L"Ако рестартираш, губиш настоящата игра !\n\nНаистина ли рестартираш ?", L"Рестарт",
+				MB_YESNO | MB_APPLMODAL | MB_ICONQUESTION) == IDNO)
+			{
+				pause = false;
+				break;
+			}
+			InitGame();
+			break;
+
+		case mLvl:
+			pause = true;
+			if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+			if (MessageBox(hwnd, L"Ако прескочиш нивото, губиш бонусите за него !\n\nНаистина ли прескачаш ниво ?", 
+				L"Следващо ниво", MB_YESNO | MB_APPLMODAL | MB_ICONQUESTION) == IDNO)
+			{
+				pause = false;
+				break;
+			}
+			//LevelUp();
+			break;
+
+		case mExit:
+			SendMessage(hwnd, WM_CLOSE, NULL, NULL);
+			break;
+
+
+
+
+		}
+		break;
 
 
 
 
 
+	default: return DefWindowProc(hwnd, ReceivedMsg, wParam, lParam);
+	}
+
+	return(LRESULT)(FALSE);
+}
+
+void CreateResources()
+{
+	int result{ 0 };
+	CheckFile(Ltmp_file, &result);
+
+	if (result == FILE_EXIST)ErrExit(eStarted);
+	else
+	{
+		std::wofstream start{ Ltmp_file };
+		start << L"Game started at : " << std::chrono::system_clock::now();
+		start.close();
+	}
+	
+	int win_x{ (int)(GetSystemMetrics(SM_CXSCREEN) / 2 - (int)(scr_width / 2.0f)) };
+	int win_y = 10;
+
+	if (GetSystemMetrics(SM_CXSCREEN) < win_x + (int)(scr_width) ||
+		GetSystemMetrics(SM_CYSCREEN) < win_y + (int)(scr_height))ErrExit(eScreen);
+
+	bIcon = (HICON)(LoadImage(NULL, L".\\res\\main.ico", IMAGE_ICON, 255, 255, LR_LOADFROMFILE));
+	if (!bIcon)ErrExit(eIcon);
+
+	bCursor = LoadCursorFromFileW(L".\\res\\main.ani");
+	outCursor = LoadCursorFromFileW(L".\\res\\out.ani");
+	if (!bCursor || !outCursor)ErrExit(eCursor);
+
+	bWinClass.lpszClassName = bWinClassName;
+	bWinClass.hInstance = bIns;
+	bWinClass.lpfnWndProc = &WinProc;
+	bWinClass.hbrBackground = CreateSolidBrush(RGB(10, 10, 10));
+	bWinClass.hIcon = bIcon;
+	bWinClass.hCursor = bCursor;
+	bWinClass.style = CS_DROPSHADOW;
+
+	if (!RegisterClass(&bWinClass))ErrExit(eClass);
+
+	bHwnd = CreateWindow(bWinClassName, L"БЯГАЩИ МИНЬОНИ", WS_CAPTION | WS_SYSMENU, win_x, win_y, (int)(scr_width),
+		(int)(scr_height), NULL, NULL, bIns, NULL);
+
+	if (!bHwnd)ErrExit(eWindow);
+	else
+	{
+		ShowWindow(bHwnd, SW_SHOWDEFAULT);
+
+		HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &iFactory);
+		if (hr != S_OK)
+		{
+			LogErr(L"Error creating main D2D1 Factory !");
+			ErrExit(eD2D);
+		}
+
+		if (iFactory)
+			hr = iFactory->CreateHwndRenderTarget(D2D1::RenderTargetProperties(), D2D1::HwndRenderTargetProperties(bHwnd,
+				D2D1::SizeU((UINT32)(scr_width), (UINT32)(scr_height))), &Draw);
+		if (hr != S_OK)
+		{
+			LogErr(L"Error creating main D2D1 HwndRenderTarget !");
+			ErrExit(eD2D);
+		}
+
+		if (Draw)
+		{
+			RECT ScrRect{};
+			D2D1_SIZE_F DIPRect{ Draw->GetSize() };
+
+			GetClientRect(bHwnd, &ScrRect);
+
+			x_scale = DIPRect.width / (ScrRect.right - ScrRect.left);
+			y_scale = DIPRect.height / (ScrRect.bottom - ScrRect.top);
+
+
+		}
+
+
+
+
+	}
+	
+
+
+
+
+
+
+
+
+
+
+}
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
@@ -371,7 +648,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		ErrExit(eClass);
 	}
 
-
+	CreateResources();
 
 
 
