@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Minion run/Minion run.vcxproj" Id="21a35410-084c-43e8-af64-4233b55e33e7" />
+</Solution>
