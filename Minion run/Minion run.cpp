@@ -64,9 +64,9 @@ D2D1_RECT_F b1Rect{ 50.0f, 10.0f, scr_width / 3.0f - 50.0f, 40.0f };
 D2D1_RECT_F b2Rect{ scr_width / 3.0f + 50.0f, 10.0f, scr_width * 2.0f / 3.0f - 50.0f, 40.0f };
 D2D1_RECT_F b3Rect{ scr_width * 2.0f / 3.0f + 50.0f, 10.0f, scr_width - 50.0f, 40.0f };
 
-D2D1_RECT_F b1TxtRect{ 80.0f, 15.0f, scr_width / 3.0f - 50.0f, 40.0f };
-D2D1_RECT_F b2TxtRect{ scr_width / 3.0f + 70.0f, 15.0f, scr_width * 2.0f / 3.0f - 50.0f, 40.0f };
-D2D1_RECT_F b3TxtRect{ scr_width * 2.0f / 3.0f + 70.0f, 15.0f, scr_width - 50.0f, 40.0f };
+D2D1_RECT_F b1TxtRect{ 90.0f, 15.0f, scr_width / 3.0f - 50.0f, 40.0f };
+D2D1_RECT_F b2TxtRect{ scr_width / 3.0f + 90.0f, 15.0f, scr_width * 2.0f / 3.0f - 50.0f, 40.0f };
+D2D1_RECT_F b3TxtRect{ scr_width * 2.0f / 3.0f + 80.0f, 15.0f, scr_width - 50.0f, 40.0f };
 
 bool pause = false;
 bool in_client = true;
@@ -297,7 +297,7 @@ void InitGame()
 	bBackgrounds.clear();
 	
 	for (float sx = -scr_width; sx < 2.0f * scr_width; sx += scr_width)
-		bBackgrounds.push_back(indll::FIELD::create(static_cast<fields>(RandIt(0, 1)), sx, 0));
+		bBackgrounds.push_back(indll::FIELD::create(static_cast<fields>(RandIt(0, 1)), sx, 50.0f));
 
 	if (!bGrounds.empty())
 		for (int i = 0; i < bGrounds.size(); ++i)if (!FreeMem(&bGrounds[i]))
@@ -327,7 +327,7 @@ void InitGame()
 	bClouds.clear();
 
 	delete Hero;
-	Hero = new indll::HERO(30.0f, ground - 88.0f);
+	Hero = new indll::HERO(30.0f, ground - 130.0f);
 }
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
@@ -543,7 +543,35 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 		}
 		break;
 
+	case WM_KEYDOWN:
+		if (!Hero)break;
+		
+		if (Hero->state == states::jump || Hero->state == states::fall)break;
+		
+		Hero->state = states::walk;
 
+		switch (LOWORD(wParam))
+		{
+		case VK_LEFT:
+			Hero->dir = dirs::left;
+			Hero->move(level);
+			break;
+
+		case VK_RIGHT:
+			Hero->dir = dirs::right;
+			Hero->move(level);
+			break;
+
+		case VK_UP:
+			Hero->jump(level);
+			break;
+
+		case VK_DOWN:
+			Hero->state = states::stop;
+			break;
+		}
+
+		break;
 
 
 
@@ -651,14 +679,14 @@ void CreateResources()
 			if (gColl)
 			{
 				hr = Draw->CreateRadialGradientBrush(D2D1::RadialGradientBrushProperties(D2D1::Point2F(b1Rect.left
-					+ (b1Rect.right - b1Rect.left) / 2.0f), D2D1::Point2F(0, 0), (b1Rect.right - b1Rect.left) / 2.0f, 20.0f), 
-					gColl, &b1BckgBrush);
+					+ (b1Rect.right - b1Rect.left) / 2.0f, b1Rect.top + (b1Rect.bottom - b1Rect.top) / 2.0f), D2D1::Point2F(0, 0),
+					(b1Rect.right - b1Rect.left) / 2.0f, 20.0f), gColl, &b1BckgBrush);
 				hr = Draw->CreateRadialGradientBrush(D2D1::RadialGradientBrushProperties(D2D1::Point2F(b2Rect.left
-					+ (b2Rect.right - b2Rect.left) / 2.0f), D2D1::Point2F(0, 0), (b2Rect.right - b2Rect.left) / 2.0f, 20.0f),
-					gColl, &b2BckgBrush);
+					+ (b2Rect.right - b2Rect.left) / 2.0f, b2Rect.top + (b2Rect.bottom - b2Rect.top) / 2.0f), D2D1::Point2F(0, 0),
+					(b2Rect.right - b2Rect.left) / 2.0f, 20.0f), gColl, &b2BckgBrush);
 				hr = Draw->CreateRadialGradientBrush(D2D1::RadialGradientBrushProperties(D2D1::Point2F(b3Rect.left
-					+ (b3Rect.right - b3Rect.left) / 2.0f), D2D1::Point2F(0, 0), (b3Rect.right - b3Rect.left) / 2.0f, 20.0f),
-					gColl, &b3BckgBrush);
+					+ (b3Rect.right - b3Rect.left) / 2.0f, b3Rect.top + (b3Rect.bottom - b3Rect.top) / 2.0f), D2D1::Point2F(0, 0),
+					(b3Rect.right - b3Rect.left) / 2.0f, 20.0f), gColl, &b3BckgBrush);
 
 				if (hr != S_OK)
 				{
@@ -681,9 +709,9 @@ void CreateResources()
 			gSunStops[2].position = 0.50f;
 			gSunStops[2].color = D2D1::ColorF(D2D1::ColorF::Gold);
 			gSunStops[3].position = 0.75f;
-			gSunStops[3].color = D2D1::ColorF(D2D1::ColorF::Goldenrod);
+			gSunStops[3].color = D2D1::ColorF(D2D1::ColorF::Orange);
 			gSunStops[4].position = 1.0f;
-			gSunStops[4].color = D2D1::ColorF(D2D1::ColorF::Orange);
+			gSunStops[4].color = D2D1::ColorF(D2D1::ColorF::Goldenrod);
 
 			hr = Draw->CreateGradientStopCollection(gSunStops, 5, &gColl);
 			if (hr != S_OK)
@@ -999,8 +1027,6 @@ void CreateResources()
 				ErrExit(eD2D);
 			}
 		}
-
-
 	}
 	
 	PlaySound(L".\\res\\snd\\intro.wav", NULL, SND_ASYNC);
@@ -1056,15 +1082,84 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	/////////////////////////////////////////////////////////////
 
+		if (Hero)
+		{
+			if (Hero->dir == dirs::left)nature_dir = dirs::right;
+			else if (Hero->dir == dirs::right)nature_dir = dirs::left;
+
+			if (Hero->state == states::stop)nature_dir = dirs::stop;
+			if (Hero->state == states::jump)Hero->jump(level);
+			if (Hero->state == states::fall)
+			{
+				indll::BAG<D2D1_RECT_F>plats(bPlatforms.size());
+
+				if (!bPlatforms.empty())for (size_t i = 0; i < bPlatforms.size(); ++i)plats.push_back(bPlatforms[i]->rect);
+				
+				Hero->fall(level, plats);
+			}
+		}
+
+		if (!bGrounds.empty() && !bBackgrounds.empty())
+		{
+			for (indll::BAG<indll::FIELD*>::iterator ground = bGrounds.begin(); ground < bGrounds.end(); ++ground)
+			{
+				(*ground)->move(level, nature_dir);
+
+				if ((*ground)->end.x <= -scr_width)
+				{
+					bGrounds.erase(bGrounds.begin());
+					need_background_right = true;
+					break;
+				}
+
+				if ((*ground)->start.x >= 2.0f * scr_width)
+				{
+					bGrounds.erase(bGrounds.end() - 1);
+					need_background_left = true;
+					break;
+				}
+			}
+			for (indll::BAG<indll::FIELD*>::iterator ground = bBackgrounds.begin(); ground < bBackgrounds.end(); ++ground)
+			{
+				(*ground)->move(level, nature_dir);
+			
+				if ((*ground)->end.x <= -scr_width)
+				{
+					bBackgrounds.erase(bBackgrounds.begin());
+					break;
+				}
+
+				if ((*ground)->start.x >= 2.0f * scr_width)
+				{
+					bBackgrounds.erase(bBackgrounds.end() - 1);
+					break;
+				}
+			}
+			
+		}
+
+		if (!bGrounds.empty() && !bBackgrounds.empty())
+		{
+			if (need_background_left)
+			{
+				need_background_left = false;
+				
+				bGrounds.push_front(indll::FIELD::create(fields::ground, bGrounds.front()->start.x - scr_width, ground - 42.0f));
+				bBackgrounds.push_front(indll::FIELD::create(static_cast<fields>(RandIt(0, 1)),
+					bBackgrounds.front()->start.x - scr_width, 50.0f));
+			}
+			if (need_background_right)
+			{
+				need_background_right = false;
+				bGrounds.push_back(indll::FIELD::create(fields::ground, bGrounds.back()->end.x, ground - 42.0f));
+				bBackgrounds.push_back(indll::FIELD::create(static_cast<fields>(RandIt(0, 1)),
+					bBackgrounds.back()->end.x, 50.0f));
+			}
+		}
 
 
 
-
-
-
-
-
-
+	
 
 
 
@@ -1120,6 +1215,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			else Draw->DrawTextW(L"ЗВУЦИ ON / OFF", 15, nrmText, b2TxtRect, hgltBrush);
 			if (!b3Hglt)Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmText, b3TxtRect, txtBrush);
 			else Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmText, b3TxtRect, hgltBrush);
+		}
+	
+	/////////////////////////////////////////////////////////////
+
+		if (Hero)
+		{
+			if (Hero->dir != dirs::left)Draw->SetTransform(D2D1::Matrix3x2F::Scale(1.0f, 1.0f, Hero->center));
+			else Draw->SetTransform(D2D1::Matrix3x2F::Scale(-1.0f, 1.0f, Hero->center));
+			
+			if (Hero->state == states::stop || Hero->state == states::jump
+				|| Hero->state == states::fall)Draw->DrawBitmap(bmpMinion[10], Hero->rect);
+			else Draw->DrawBitmap(bmpMinion[Hero->get_frame()], Hero->rect);
+			
+
+			Draw->SetTransform(D2D1::Matrix3x2F::Rotation(0, Hero->center));
 		}
 
 
