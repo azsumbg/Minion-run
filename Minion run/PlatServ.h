@@ -19,7 +19,7 @@ constexpr int BAD_ERR{ 5004 };
 constexpr int BAD_ITERATOR{ 5005 };
 
 constexpr float scr_width{ 1000.0f };
-constexpr float scr_height{ 750.0f };
+constexpr float scr_height{ 800.0f };
 
 constexpr float sky{ 50.0f };
 constexpr float ground{ 750.0f };
@@ -666,6 +666,8 @@ namespace indll
 	public:
 
 		bool move(float gear, dirs to_where);
+
+		fields get_type() const;
 
 		int get_frame();
 
