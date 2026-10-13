@@ -625,7 +625,7 @@ void CreateResources()
 
 			hr = Draw->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Navy), &statBrush);
 			hr = Draw->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Chartreuse), &txtBrush);
-			hr = Draw->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Gold), &hgltBrush);
+			hr = Draw->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Red), &hgltBrush);
 			hr = Draw->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::SteelBlue), &inactBrush);
 
 			if (hr != S_OK)
@@ -683,7 +683,7 @@ void CreateResources()
 			gSunStops[3].position = 0.75f;
 			gSunStops[3].color = D2D1::ColorF(D2D1::ColorF::Goldenrod);
 			gSunStops[4].position = 1.0f;
-			gSunStops[4].color = D2D1::ColorF(D2D1::ColorF::Black);
+			gSunStops[4].color = D2D1::ColorF(D2D1::ColorF::Orange);
 
 			hr = Draw->CreateGradientStopCollection(gSunStops, 5, &gColl);
 			if (hr != S_OK)
@@ -695,8 +695,9 @@ void CreateResources()
 			if (gColl)
 			{
 				hr = Draw->CreateRadialGradientBrush(D2D1::RadialGradientBrushProperties(D2D1::Point2F(Sun.left
-					+ (Sun.right - Sun.left) / 2.0f), D2D1::Point2F(0, 0), (Sun.right - Sun.left) / 2.0f,
-					45.0f), gColl, &SunBrush);
+					+ (Sun.right - Sun.left) / 2.0f, Sun.top + (Sun.bottom - Sun.top) / 2.0f),
+					D2D1::Point2F(0, 0), (Sun.right - Sun.left) / 2.0f, (Sun.bottom - Sun.top) / 2.0f),
+					gColl, &SunBrush);
 				
 				if (hr != S_OK)
 				{
