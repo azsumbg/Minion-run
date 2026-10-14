@@ -1087,6 +1087,27 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			if (Hero->dir == dirs::left)nature_dir = dirs::right;
 			else if (Hero->dir == dirs::right)nature_dir = dirs::left;
 
+			if (Hero->end.y < ground && Hero->state != states::jump)
+			{
+				states prev_hero_state = Hero->state;
+
+				Hero->state = states::fall;
+
+				if (!bPlatforms.empty())
+				{
+					for (int i = 0; i < bPlatforms.size(); ++i)
+					{
+						if (indll::Intersect(Hero->rect, bPlatforms[i]->rect))
+						{
+							Hero->state = prev_hero_state;
+							break;
+						}
+					}
+				}
+				else Hero->state = prev_hero_state;
+			}
+
+
 			if (Hero->state == states::stop)nature_dir = dirs::stop;
 			if (Hero->state == states::jump)Hero->jump(level);
 			if (Hero->state == states::fall)
@@ -1157,11 +1178,81 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			}
 		}
 
+		if (bPlatforms.size() < 2 && RandIt(0, 200) == 66)
+		{
+			int ttype = RandIt(6, 8);
 
+			float sx = scr_width + RandIt(0.0f, 700.0f);
+			float sy = ground - RandIt(58.0f, 120.0f);
 
-	
+			indll::FIELD* dummy{ indll::FIELD::create(static_cast<fields>(ttype),sx,sy) };
 
+			bool ok = true;
 
+			if (!bPlatforms.empty())
+			{
+				for (int i = 0; i < bPlatforms.size(); ++i)
+				{
+					if (indll::Intersect(dummy->rect, bPlatforms[i]->rect))
+					{
+						ok = false;
+						break;
+					}
+				}
+			}
+			
+			if (ok)bPlatforms.push_back(dummy);
+		}
+
+		if (!bPlatforms.empty())
+		{
+			for (indll::BAG<indll::FIELD*>::iterator plat = bPlatforms.begin(); plat < bPlatforms.end(); ++plat)
+			{
+				if (!(*plat)->move(level, nature_dir))
+				{
+					bPlatforms.erase(plat);
+					break;
+				}
+			}
+		}
+
+		if (bClouds.size() < 3 && RandIt(0, 100) == 33)
+		{
+			int ttype = RandIt(9, 11);
+			
+			float sx = scr_width + RandIt(0.0f, 700.0f);
+			float sy = sky + RandIt(0.0f, 100.0f);
+
+			indll::FIELD* dummy{ indll::FIELD::create(static_cast<fields>(ttype),sx,sy) };
+
+			bool ok = true;
+
+			if (!bClouds.empty())
+			{
+				for (int i = 0; i < bClouds.size(); ++i)
+				{
+					if (indll::Intersect(dummy->rect, bClouds[i]->rect))
+					{
+						ok = false;
+						break;
+					}
+				}
+			}
+
+			if (ok)bClouds.push_back(dummy);
+		}
+
+		if (!bClouds.empty())
+		{
+			for (indll::BAG<indll::FIELD*>::iterator cloud = bClouds.begin(); cloud < bClouds.end(); ++cloud)
+			{
+				if (!(*cloud)->move(level, nature_dir))
+				{
+					bClouds.erase(cloud);
+					break;
+				}
+			}
+		}
 
 
 
@@ -1219,6 +1310,27 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	
 	/////////////////////////////////////////////////////////////
 
+		if (!bPlatforms.empty())
+		{
+			for (int i = 0; i < bPlatforms.size(); ++i)
+			{
+				switch (bPlatforms[i]->get_type())
+				{
+				case fields::platform1:
+					Draw->DrawBitmap(bmpPlatform1, bPlatforms[i]->rect);
+					break;
+
+				case fields::platform2:
+					Draw->DrawBitmap(bmpPlatform2, bPlatforms[i]->rect);
+					break;
+
+				case fields::platform3:
+					Draw->DrawBitmap(bmpPlatform3, bPlatforms[i]->rect);
+					break;
+				}
+			}
+		}
+		
 		if (Hero)
 		{
 			if (Hero->dir != dirs::left)Draw->SetTransform(D2D1::Matrix3x2F::Scale(1.0f, 1.0f, Hero->center));
@@ -1232,6 +1344,28 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			Draw->SetTransform(D2D1::Matrix3x2F::Rotation(0, Hero->center));
 		}
 
+
+
+		if (!bClouds.empty())
+		{
+			for (int i = 0; i < bClouds.size(); ++i)
+			{
+				switch (bClouds[i]->get_type())
+				{
+				case fields::cloud1:
+					Draw->DrawBitmap(bmpCloud1, bClouds[i]->rect);
+					break;
+
+				case fields::cloud2:
+					Draw->DrawBitmap(bmpCloud2, bClouds[i]->rect);
+					break;
+
+				case fields::cloud3:
+					Draw->DrawBitmap(bmpCloud3, bClouds[i]->rect);
+					break;
+				}
+			}
+		}
 
 	//////////////////////////////////////////////////////////////
 
