@@ -158,10 +158,13 @@ indll::BAG<indll::FIELD*> bGrounds;
 indll::BAG<indll::FIELD*> bPlatforms;
 indll::BAG<indll::FIELD*> bClouds;
 
+indll::BAG<indll::FADING> bAssets;
+
 D2D1_RECT_F Sun{};
 
 indll::HERO* Hero{ nullptr };
 
+indll::BAG<indll::EVILS*> bEvils;
 
 ///////////////////////////////////////////////////////////
 
@@ -326,8 +329,17 @@ void InitGame()
 		}
 	bClouds.clear();
 
+	if (!bEvils.empty())for (size_t i = 0; i < bEvils.size(); ++i)if (!FreeMem(&bEvils[i]))
+	{
+		LogErr(L"Error releasing bClouds in Init() function !");
+		ErrExit(eWindow);
+	}
+	bEvils.clear();
+
 	delete Hero;
 	Hero = new indll::HERO(30.0f, ground - 130.0f);
+
+	bAssets.clear();
 }
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
@@ -568,6 +580,10 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 
 		case VK_DOWN:
 			Hero->state = states::stop;
+			break;
+
+		case VK_SHIFT:
+			
 			break;
 		}
 
@@ -1087,10 +1103,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			if (Hero->dir == dirs::left)nature_dir = dirs::right;
 			else if (Hero->dir == dirs::right)nature_dir = dirs::left;
 
-			if (Hero->end.y < ground && Hero->state != states::jump)
+			if (Hero->end.y < ground - 42.0f && Hero->state != states::jump)
 			{
 				states prev_hero_state = Hero->state;
-
+				
 				Hero->state = states::fall;
 
 				if (!bPlatforms.empty())
@@ -1104,9 +1120,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 						}
 					}
 				}
-				else Hero->state = prev_hero_state;
+				
 			}
-
 
 			if (Hero->state == states::stop)nature_dir = dirs::stop;
 			if (Hero->state == states::jump)Hero->jump(level);
@@ -1216,7 +1231,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			}
 		}
 
-		if (bClouds.size() < 3 && RandIt(0, 100) == 33)
+		if (bClouds.size() < 5 && RandIt(0, 100) == 33)
 		{
 			int ttype = RandIt(9, 11);
 			
@@ -1254,8 +1269,91 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			}
 		}
 
+		if (bEvils.size() < 5 + (int)(level) && RandIt(0, 200) == 66)
+		{
+			float sx = scr_width + RandIt(10.0f, 800.0f);
+			float sy = ground - 127.0f;
 
+			indll::EVILS* dummy{ indll::EVILS::create(static_cast<evils>(RandIt(0,2)),sx,sy) };
+			if (dummy->get_type() == evils::caveman)
+			{
+				dummy->start.y = ground - 42.0f - 95.0f;
+				dummy->set_edges();
+			}
+			if (dummy->get_type() == evils::zombie)
+			{
+				dummy->start.y = ground - 42.0f - 90.0f;
+				dummy->set_edges();
+			}
 
+			bool ok = true;
+
+			if (!bEvils.empty())
+			{
+				for (int i = 0; i < bEvils.size(); ++i)
+				{
+					if (indll::Intersect(bEvils[i]->rect, dummy->rect))
+					{
+						ok = false;
+						break;
+					}
+				}
+			}
+
+			if (ok)bEvils.push_back(dummy);
+		}
+
+		if (!bEvils.empty() && Hero)
+		{
+			indll::BAG<D2D1_POINT_2F> assets_bag(bAssets.size());
+			if (!bAssets.empty())
+			{
+				for (int i = 0; i < bAssets.size(); ++i)
+				{
+					assets_bag.push_back(D2D1::Point2F(bAssets[i].position.left +
+						(bAssets[i].position.right - bAssets[i].position.left) / 2.0f,
+						bAssets[i].position.top + (bAssets[i].position.bottom - bAssets[i].position.top) / 2.0f));
+				}
+			}
+
+			indll::BAG<D2D1_RECT_F>platforms_bag(bPlatforms.size());
+			if (!bPlatforms.empty())for (int i = 0; i < bPlatforms.size(); ++i)
+				platforms_bag.push_back(bPlatforms[i]->rect);
+
+			for (indll::BAG<indll::EVILS*>::iterator evil = bEvils.begin(); evil < bEvils.end(); ++evil)
+			{
+				if (Hero->center.x < (*evil)->center.x)(*evil)->dir = dirs::left;
+				else (*evil)->dir = dirs::right;
+
+				indll::EvilNextMove(*(*evil), assets_bag, platforms_bag, Hero->center, level);
+			
+				switch ((*evil)->state)
+				{
+				case states::walk:
+					(*evil)->move(level);
+					if ((*evil)->end.x >= scr_width + scr_width / 2.0f)(*evil)->dir = dirs::left;
+					if ((*evil)->start.x <= -scr_width / 2.0f)(*evil)->dir = dirs::right;
+					break;
+
+				case states::attack:
+					{
+						int adamage = (*evil)->attack();
+
+						if (adamage > 0)
+						{
+							if (sound)mciSendString(L"play .\\res\\snd\\herohurt.wav", NULL, NULL, NULL);
+							Hero->lifes -= adamage;
+
+						}
+					}
+					break;
+
+				case states::jump:
+					(*evil)->jump(level);
+					break;
+				}
+			}
+		}
 
 
 	// DRAW THINGS **********************************************
@@ -1336,15 +1434,45 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			if (Hero->dir != dirs::left)Draw->SetTransform(D2D1::Matrix3x2F::Scale(1.0f, 1.0f, Hero->center));
 			else Draw->SetTransform(D2D1::Matrix3x2F::Scale(-1.0f, 1.0f, Hero->center));
 			
-			if (Hero->state == states::stop || Hero->state == states::jump
-				|| Hero->state == states::fall)Draw->DrawBitmap(bmpMinion[10], Hero->rect);
+			if (Hero->state != states::walk)Draw->DrawBitmap(bmpMinion[10], Hero->rect);
 			else Draw->DrawBitmap(bmpMinion[Hero->get_frame()], Hero->rect);
-			
-
+		
 			Draw->SetTransform(D2D1::Matrix3x2F::Rotation(0, Hero->center));
+
+			Draw->DrawLine(D2D1::Point2F(Hero->start.x, Hero->end.y + 2.0f),
+				D2D1::Point2F(Hero->start.x + Hero->lifes / 1.5f, Hero->end.y + 2.0f), txtBrush, 5.0f);
 		}
 
+		if (!bEvils.empty())
+		{
+			for (indll::BAG<indll::EVILS*>::iterator evil = bEvils.begin(); evil < bEvils.end(); ++evil)
+			{
+				int aframe = (*evil)->get_frame();
 
+				if ((*evil)->dir == dirs::left)Draw->SetTransform(D2D1::Matrix3x2F::Scale(1.0f, 1.0f, (*evil)->center));
+				else if ((*evil)->dir == dirs::right)Draw->SetTransform(D2D1::Matrix3x2F::Scale(-1.0f, 1.0f, (*evil)->center));
+
+				switch ((*evil)->get_type())
+				{
+				case evils::angry:
+					Draw->DrawBitmap(bmpAngry[aframe], Resizer(bmpAngry[aframe], (*evil)->start.x, (*evil)->start.y));
+					break;
+
+				case evils::caveman:
+					Draw->DrawBitmap(bmpCaveman[aframe], Resizer(bmpCaveman[aframe], (*evil)->start.x, (*evil)->start.y));
+					break;
+
+				case evils::zombie:
+					Draw->DrawBitmap(bmpZombie[aframe], Resizer(bmpZombie[aframe], (*evil)->start.x, (*evil)->start.y));
+					break;
+				}
+
+				Draw->SetTransform(D2D1::Matrix3x2F::Scale(1.0f, 1.0f, (*evil)->center));
+
+				Draw->DrawLine(D2D1::Point2F((*evil)->start.x, (*evil)->end.y + 2.0f),
+					D2D1::Point2F((*evil)->start.x + (*evil)->lifes, (*evil)->end.y + 2.0f), txtBrush, 5.0f);
+			}
+		}
 
 		if (!bClouds.empty())
 		{
