@@ -46,8 +46,8 @@ namespace indll
 	{
 	private:
 		float current_state{ 1.0f };
-		int delay{ 80 };
-		int max_delay{ 80 };
+		int delay{ 40 };
+		int max_delay{ 40 };
 
 	public:
 		assets type{ assets::chest };

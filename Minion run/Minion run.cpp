@@ -1069,7 +1069,7 @@ void CreateResources()
 	
 	PlaySound(L".\\res\\snd\\intro.wav", NULL, SND_ASYNC);
 
-	for (int i = 0; i < 450; ++i)
+	for (int i = 0; i < 500; ++i)
 	{
 		Draw->BeginDraw();
 		Draw->DrawBitmap(bmpIntro[Intro->get_frame()], Intro->rect);
@@ -1215,7 +1215,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			}
 		}
 
-		if (bPlatforms.size() < 2 && RandIt(0, 200) == 66)
+		if (bPlatforms.size() < 10 && RandIt(0, 200) == 66)
 		{
 			int ttype = RandIt(6, 8);
 
@@ -1238,7 +1238,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 				}
 			}
 			
-			if (ok)bPlatforms.push_back(dummy);
+			if (ok)
+			{
+				bPlatforms.push_back(dummy);
+				if (RandIt(0, 3) == 1)
+				{
+					bAssets.push_back(indll::FADING{});
+					bAssets.back().position.left = bPlatforms.back()->center.x - 23.0f;
+					bAssets.back().position.top = bPlatforms.back()->center.y - 32.0f;
+					bAssets.back().position.right = bPlatforms.back()->center.x + 23.0f;
+					bAssets.back().position.bottom = bPlatforms.back()->center.y;
+				}
+			}
 		}
 
 		if (!bPlatforms.empty())
@@ -1249,6 +1260,164 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 				{
 					bPlatforms.erase(plat);
 					break;
+				}
+			}
+		}
+
+		if (!bAssets.empty())
+		{
+			for (indll::BAG<indll::FADING>::iterator asset = bAssets.begin(); asset < bAssets.end(); ++asset)
+			{
+				float aspeed = linear + level / 10.0f;
+
+				switch (nature_dir)
+				{
+				case dirs::left:
+					asset->position.left -= aspeed;
+					asset->position.right -= aspeed;
+					break;
+
+				case dirs::right:
+					asset->position.left += aspeed;
+					asset->position.right += aspeed;
+					break;
+				}
+
+				if (asset->position.left >= 2.0f * scr_width || asset->position.right <= -scr_width)
+				{
+					bAssets.erase(asset);
+					break;
+				}
+			}
+		}
+
+		if (Hero && !bAssets.empty())
+		{
+			bool chest_opened = false;
+
+			D2D1_RECT_F open_chest_rect{};
+
+			for (indll::BAG<indll::FADING>::iterator asset = bAssets.begin(); asset < bAssets.end(); ++asset)
+			{
+				if (indll::Intersect(Hero->rect, asset->position))
+				{
+					if (asset->type != assets::chest)continue;
+
+					asset->type = assets::open_chest;
+					asset->position.top -= 10.0f;
+
+					chest_opened = true;
+
+					open_chest_rect = asset->position;
+
+					break;
+				}
+			}
+
+			if (chest_opened)
+			{
+				switch (RandIt(0, 2))
+				{
+				case 0:
+					bAssets.push_back(indll::FADING{});
+					bAssets.back().type = assets::life;
+					bAssets.back().position.left = open_chest_rect.left;
+					bAssets.back().position.right = open_chest_rect.left + 23.0f;
+					bAssets.back().position.top = open_chest_rect.top - 38.0f;
+					bAssets.back().position.bottom = open_chest_rect.top;
+					if (Hero->lifes + 20 <= 100)Hero->lifes += 20;
+					else Hero->lifes = 100;
+					if (sound)mciSendString(L"play .\\res\\snd\\life.wav", NULL, NULL, NULL);
+					break;
+
+				case 1:
+					bAssets.push_back(indll::FADING{});
+					bAssets.back().type = assets::armor;
+					bAssets.back().position.left = open_chest_rect.left;
+					bAssets.back().position.right = open_chest_rect.left + 24.0f;
+					bAssets.back().position.top = open_chest_rect.top - 32.0f;
+					bAssets.back().position.bottom = open_chest_rect.top;
+					if (Hero->armor + 1 <= 10)++Hero->armor;
+					else Hero->armor = 10;
+					if (sound)mciSendString(L"play .\\res\\snd\\armor.wav", NULL, NULL, NULL);
+					break;
+
+				case 2:
+					bAssets.push_back(indll::FADING{});
+					bAssets.back().type = assets::acid;
+					bAssets.back().position.left = open_chest_rect.left;
+					bAssets.back().position.right = open_chest_rect.left + 23.0f;
+					bAssets.back().position.top = open_chest_rect.top - 20.0f;
+					bAssets.back().position.bottom = open_chest_rect.top;
+					++Hero->damage;
+					if (sound)mciSendString(L"play .\\res\\snd\\damage.wav", NULL, NULL, NULL);
+					break;
+				}
+			}
+		}
+
+		if (!bEvils.empty() && !bAssets.empty())
+		{
+			bool chest_opened = false;
+
+			D2D1_RECT_F open_chest_rect{};
+
+			for (indll::BAG<indll::EVILS*>::iterator evil = bEvils.begin(); evil < bEvils.end(); ++evil)
+			{
+				for (indll::BAG<indll::FADING>::iterator asset = bAssets.begin(); asset < bAssets.end(); ++asset)
+				{
+					if (asset->position.right > scr_width - 150.0f)continue;
+
+					if (indll::Intersect((*evil)->rect, asset->position))
+					{
+						if (asset->type != assets::chest)continue;
+
+						asset->type = assets::open_chest;
+						asset->position.top -= 10.0f;
+
+						chest_opened = true;
+
+						open_chest_rect = asset->position;
+
+						break;
+					}
+				}
+			
+				if (chest_opened)
+				{
+					switch (RandIt(0, 2))
+					{
+					case 0:
+						bAssets.push_back(indll::FADING{});
+						bAssets.back().type = assets::life;
+						bAssets.back().position.left = open_chest_rect.left;
+						bAssets.back().position.right = open_chest_rect.left + 23.0f;
+						bAssets.back().position.top = open_chest_rect.top - 38.0f;
+						bAssets.back().position.bottom = open_chest_rect.top;
+						if ((*evil)->lifes + 20 <= 100)(*evil)->lifes += 20;
+						break;
+
+					case 1:
+						bAssets.push_back(indll::FADING{});
+						bAssets.back().type = assets::armor;
+						bAssets.back().position.left = open_chest_rect.left;
+						bAssets.back().position.right = open_chest_rect.left + 24.0f;
+						bAssets.back().position.top = open_chest_rect.top - 32.0f;
+						bAssets.back().position.bottom = open_chest_rect.top;
+						if ((*evil)->armor + 1 <= 10)++(*evil)->armor;
+						else (*evil)->armor = 10;
+						break;
+
+					case 2:
+						bAssets.push_back(indll::FADING{});
+						bAssets.back().type = assets::acid;
+						bAssets.back().position.left = open_chest_rect.left;
+						bAssets.back().position.right = open_chest_rect.left + 23.0f;
+						bAssets.back().position.top = open_chest_rect.top - 20.0f;
+						bAssets.back().position.bottom = open_chest_rect.top;
+						++(*evil)->damage;
+						break;
+					}
 				}
 			}
 		}
@@ -1291,7 +1460,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			}
 		}
 
-		if (bEvils.size() < 5 + (int)(level) && RandIt(0, 200) == 66)
+		if (bEvils.size() < 15 + (int)(level) && RandIt(0, 200) == 66)
 		{
 			float sx = scr_width + RandIt(10.0f, 800.0f);
 			float sy = ground - 127.0f;
@@ -1516,7 +1685,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		
 			Draw->SetTransform(D2D1::Matrix3x2F::Rotation(0, Hero->center));
 
-			Draw->DrawLine(D2D1::Point2F(Hero->start.x + 5.0f, Hero->end.y + 2.0f),
+			Draw->DrawLine(D2D1::Point2F(Hero->start.x + 20.0f, Hero->end.y + 2.0f),
 				D2D1::Point2F(Hero->start.x + Hero->lifes / 1.5f, Hero->end.y + 2.0f), txtBrush, 5.0f);
 		}
 
@@ -1546,8 +1715,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 				Draw->SetTransform(D2D1::Matrix3x2F::Scale(1.0f, 1.0f, (*evil)->center));
 
-				Draw->DrawLine(D2D1::Point2F((*evil)->start.x, (*evil)->end.y + 2.0f),
-					D2D1::Point2F((*evil)->start.x + (*evil)->lifes, (*evil)->end.y + 2.0f), txtBrush, 5.0f);
+				Draw->DrawLine(D2D1::Point2F((*evil)->start.x + 5.0f, (*evil)->end.y + 2.0f),
+					D2D1::Point2F((*evil)->start.x + (*evil)->lifes / 1.5f, (*evil)->end.y + 2.0f), txtBrush, 5.0f);
 			}
 		}
 
@@ -1574,6 +1743,58 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 		if (!bShots.empty())
 			for (int i = 0; i < bShots.size(); ++i) Draw->DrawBitmap(bmpSpit, bShots[i]->rect);
+
+		if (!bAssets.empty())
+			for (int i = 0; i < bAssets.size(); ++i)
+			{
+				float current_fading = bAssets[i].get_state();
+				bool fade_out = false;
+
+				switch (bAssets[i].type)
+				{
+				case assets::chest:
+					Draw->DrawBitmap(bmpChest, bAssets[i].position);
+					break;
+			
+				case assets::open_chest:
+					Draw->DrawBitmap(bmpOpenChest, bAssets[i].position, current_fading);
+					if (current_fading <= 0)
+					{
+						fade_out = true;
+						bAssets.erase(i);
+					}
+					break;
+
+				case assets::life:
+					Draw->DrawBitmap(bmpLife, bAssets[i].position, current_fading);
+					if (current_fading <= 0)
+					{
+						fade_out = true;
+						bAssets.erase(i);
+					}
+					break;
+
+				case assets::armor:
+					Draw->DrawBitmap(bmpArmor, bAssets[i].position, current_fading);
+					if (current_fading <= 0)
+					{
+						fade_out = true;
+						bAssets.erase(i);
+					}
+					break;
+
+				case assets::acid:
+					Draw->DrawBitmap(bmpAcid, bAssets[i].position, current_fading);
+					if (current_fading <= 0)
+					{
+						fade_out = true;
+						bAssets.erase(i);
+					}
+					break;
+				}
+
+				if (fade_out)break;
+			}
 
 	//////////////////////////////////////////////////////////////
 
