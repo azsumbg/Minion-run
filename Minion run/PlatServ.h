@@ -724,6 +724,7 @@ namespace indll
 
 		int damage = 20;
 		int lifes = 100;
+		int armor{ 1 };
 
 		HERO(float sx, float sy);
 
@@ -763,6 +764,7 @@ namespace indll
 		states state{ states::walk };
 		int lifes{ 0 };
 		int damage{ 0 };
+		int armor{ 1 };
 
 		evils get_type()const;
 

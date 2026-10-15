@@ -23,7 +23,7 @@ constexpr wchar_t bWinClassName[]{ L"Minions" };
 
 constexpr char tmp_file[]{ ".\\res\\data\\temp.dat" };
 constexpr wchar_t Ltmp_file[]{ L".\\res\\data\\temp.dat" };
-constexpr wchar_t snd_file[]{ L".\\res\\snd\\main.dat" };
+constexpr wchar_t snd_file[]{ L".\\res\\snd\\main.wav" };
 constexpr wchar_t help_file[]{ L".\\res\\data\\help.dat" };
 constexpr wchar_t record_file[]{ L".\\res\\data\\record.dat" };
 constexpr wchar_t save_file[]{ L".\\res\\data\\save.dat" };
@@ -160,7 +160,10 @@ indll::BAG<indll::FIELD*> bClouds;
 
 indll::BAG<indll::FADING> bAssets;
 
+indll::BAG<indll::SHOT*>bShots;
+
 D2D1_RECT_F Sun{};
+D2D1_RECT_F RIP{};
 
 indll::HERO* Hero{ nullptr };
 
@@ -338,6 +341,14 @@ void InitGame()
 
 	delete Hero;
 	Hero = new indll::HERO(30.0f, ground - 130.0f);
+
+	if (!bShots.empty())
+		for (int i = 0; i < bShots.size(); ++i)if (!FreeMem(&bShots[i]))
+		{
+			LogErr(L"Error releasing bShots in Init() function !");
+			ErrExit(eWindow);
+		}
+	bShots.clear();
 
 	bAssets.clear();
 }
@@ -557,39 +568,50 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 
 	case WM_KEYDOWN:
 		if (!Hero)break;
-		
-		if (Hero->state == states::jump || Hero->state == states::fall)break;
-		
-		Hero->state = states::walk;
-
 		switch (LOWORD(wParam))
 		{
 		case VK_LEFT:
 			Hero->dir = dirs::left;
+			if (Hero->state == states::jump || Hero->state == states::fall)break;
 			Hero->move(level);
+			Hero->state = states::walk;
 			break;
 
 		case VK_RIGHT:
 			Hero->dir = dirs::right;
+			if (Hero->state == states::jump || Hero->state == states::fall)break;
 			Hero->move(level);
+			Hero->state = states::walk;
 			break;
 
 		case VK_UP:
+			if (Hero->state == states::jump || Hero->state == states::fall)break;
 			Hero->jump(level);
 			break;
 
 		case VK_DOWN:
+			if (Hero->state == states::jump || Hero->state == states::fall)break;
 			Hero->state = states::stop;
 			break;
 
 		case VK_SHIFT:
-			
+			if (!bEvils.empty())
+			{
+				indll::BAG<D2D1_POINT_2F> evil_bag{ bEvils.size() };
+
+				for (int i = 0; i < bEvils.size(); ++i)evil_bag.push_back(bEvils[i]->center);
+
+				indll::Sort(evil_bag, Hero->center);
+
+				bShots.push_back(indll::SHOT::create(Hero->center.x, Hero->center.y, evil_bag[0].x, evil_bag[0].y));
+				bShots.back()->damage = Hero->damage;
+
+				if (sound)mciSendString(L"play .\\res\\snd\\spit.wav", NULL, NULL, NULL);
+			}
+			else if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
 			break;
 		}
-
 		break;
-
-
 
 	default: return DefWindowProc(hwnd, ReceivedMsg, wParam, lParam);
 	}
@@ -1047,7 +1069,7 @@ void CreateResources()
 	
 	PlaySound(L".\\res\\snd\\intro.wav", NULL, SND_ASYNC);
 
-	for (int i = 0; i < 260; ++i)
+	for (int i = 0; i < 450; ++i)
 	{
 		Draw->BeginDraw();
 		Draw->DrawBitmap(bmpIntro[Intro->get_frame()], Intro->rect);
@@ -1069,7 +1091,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	CreateResources();
 
-
+	PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
 
 	while (bMsg.message != WM_QUIT)
 	{
@@ -1342,8 +1364,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 						if (adamage > 0)
 						{
 							if (sound)mciSendString(L"play .\\res\\snd\\herohurt.wav", NULL, NULL, NULL);
-							Hero->lifes -= adamage;
-
+							Hero->lifes -= (adamage - Hero->armor);
+							if (Hero->lifes <= 0)
+							{
+								hero_killed = true;
+								RIP.left = Hero->start.x;
+								RIP.top = Hero->start.y;
+								RIP.right = RIP.left + 80.0f;
+								RIP.bottom = RIP.top + 94.0f;
+								delete Hero;
+							}
 						}
 					}
 					break;
@@ -1352,9 +1382,56 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 					(*evil)->jump(level);
 					break;
 				}
+
+				if (hero_killed)break;
 			}
 		}
 
+		if (!bShots.empty())
+		{
+			for (indll::BAG<indll::SHOT*>::iterator shot = bShots.begin(); shot < bShots.end(); ++shot)
+			{
+				if (!(*shot)->move(level))
+				{
+					(*shot)->Release();
+					bShots.erase(shot);
+					break;
+				}
+			}
+		}
+
+		if (!bEvils.empty() && !bShots.empty())
+		{
+			bool killed = false;
+
+			for (indll::BAG<indll::EVILS*>::iterator evil = bEvils.begin(); evil < bEvils.end(); ++evil)
+			{
+				for (indll::BAG<indll::SHOT*>::iterator shot = bShots.begin(); shot < bShots.end(); ++shot)
+				{
+					if (indll::Intersect((*evil)->rect, (*shot)->rect))
+					{
+						if (sound)mciSendString(L"play .\\res\\snd\\evilhurt.wav", NULL, NULL, NULL);
+
+						(*evil)->lifes -= ((*shot)->damage - (*evil)->armor);
+
+						(*shot)->Release();
+						bShots.erase(shot);
+
+						if ((*evil)->lifes <= 0)
+						{
+							score += (int)((*evil)->get_height() / 5.0f);
+							(*evil)->Release();
+							bEvils.erase(evil);
+							killed = true;
+						}
+
+						break;
+					}
+				}
+
+				if (killed)break;
+			}
+		}
 
 	// DRAW THINGS **********************************************
 
@@ -1439,7 +1516,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		
 			Draw->SetTransform(D2D1::Matrix3x2F::Rotation(0, Hero->center));
 
-			Draw->DrawLine(D2D1::Point2F(Hero->start.x, Hero->end.y + 2.0f),
+			Draw->DrawLine(D2D1::Point2F(Hero->start.x + 5.0f, Hero->end.y + 2.0f),
 				D2D1::Point2F(Hero->start.x + Hero->lifes / 1.5f, Hero->end.y + 2.0f), txtBrush, 5.0f);
 		}
 
@@ -1495,7 +1572,25 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 			}
 		}
 
+		if (!bShots.empty())
+			for (int i = 0; i < bShots.size(); ++i) Draw->DrawBitmap(bmpSpit, bShots[i]->rect);
+
 	//////////////////////////////////////////////////////////////
+
+		if (hero_killed)
+		{
+			Draw->DrawBitmap(bmpRIP, RIP);
+			Draw->EndDraw();
+
+			if (sound)
+			{
+				PlaySound(NULL, NULL, NULL);
+				PlaySound(L".\\res\\snd\\killed.wav", NULL, SND_SYNC);
+			}
+			else Sleep(3000);
+
+			GameOver();
+		}
 
 		Draw->EndDraw();
 
