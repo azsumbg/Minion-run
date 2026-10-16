@@ -158,6 +158,8 @@ indll::BAG<indll::FIELD*> bGrounds;
 indll::BAG<indll::FIELD*> bPlatforms;
 indll::BAG<indll::FIELD*> bClouds;
 
+indll::FIELD* Castle{ nullptr };
+
 indll::BAG<indll::FADING> bAssets;
 
 indll::BAG<indll::SHOT*>bShots;
@@ -351,17 +353,24 @@ void InitGame()
 	bShots.clear();
 
 	bAssets.clear();
+
+	if (Castle)
+		if (!FreeMem(&Castle))
+	{
+		LogErr(L"Error releasing Castle in Init() function !");
+		ErrExit(eWindow);
+	}
 }
 void LevelUp()
 {
 	if (!level_skipped && Hero)
 	{
-		score += Hero->damage * (int)(level);
+		score += Hero->damage * (int)(level) + Hero->armor * (int)(level);
 
 		wchar_t txt[50]{ L"\0" };
 		int size{ 0 };
 
-		swprintf_s(txt, 50, L"БОНУС: %d", score);
+		swprintf_s(txt, 50, L"БОНУС: %d", Hero->damage * (int)(level) + Hero->armor * (int)(level));
 
 		for (int i = 0; i < 50; ++i)
 		{
@@ -369,20 +378,20 @@ void LevelUp()
 			else break;
 		}
 
-		if (bigText && txtBrush)
+		if (bigText && hgltBrush)
 		{
+			if (sound) mciSendString(L"play .\\res\\snd\\yuhu.wav", NULL, NULL, NULL);
+
 			for (int i = 0; i < 200; ++i)
 			{
 				Draw->BeginDraw();
 				Draw->Clear(D2D1::ColorF(D2D1::ColorF::Khaki));
 				if (i % 10 == 0)
 					Draw->DrawTextW(txt, size, bigText,
-						D2D1::RectF(scr_width / 2.0f - 150.0f, scr_height / 2.0f - 50.0f, scr_width, scr_height), txtBrush);
+						D2D1::RectF(scr_width / 2.0f - 250.0f, scr_height / 2.0f - 50.0f, scr_width, scr_height), hgltBrush);
 				Draw->EndDraw();
-				Sleep(20);
+				Sleep(10);
 			}
-
-			if (sound)mciSendString(L"play .\\res\\snd\\yuhu.wav", NULL, NULL, NULL);
 		}
 	}
 
@@ -393,6 +402,7 @@ void LevelUp()
 	if (sound)
 	{
 		PlaySound(NULL, NULL, NULL);
+		PlaySound(L".\\res\\snd\\levelup.wav", NULL, SND_SYNC);
 		PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
 	}
 	else Sleep(4000);
@@ -470,6 +480,13 @@ void LevelUp()
 	bShots.clear();
 
 	bAssets.clear();
+
+	if (Castle)
+		if (!FreeMem(&Castle))
+		{
+			LogErr(L"Error releasing Castle in Init() function !");
+			ErrExit(eWindow);
+		}
 }
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
@@ -644,7 +661,7 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 		break;
 
 	case WM_TIMER:
-		if (pause)break;
+		if (pause || Castle)break;
 		if (nature_dir == dirs::left)--distance;
 		else if (nature_dir == dirs::right)++distance;
 		break;
@@ -1976,6 +1993,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 				if (fade_out)break;
 			}
 
+		if (Castle)Draw->DrawBitmap(bmpCastle, Castle->rect);
+
 		// STATUS TEXT **************************
 
 		if (midText && hgltBrush && Hero)
@@ -2017,7 +2036,45 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 		Draw->EndDraw();
 
-		if (distance <= 0)LevelUp();
+		if (distance <= 0 && Hero)
+		{
+			if (!Castle)
+			{
+				bool ok = false;
+
+				while (!ok)
+				{
+					ok = true;
+
+					indll::FIELD* dummy{ indll::FIELD::create(fields::castle,scr_width + RandIt(100.0f,800.0f),ground - 352.0f) };
+
+					if (!bPlatforms.empty())
+					{
+						for (int i = 0; i < bPlatforms.size(); ++i)
+						{
+							if (indll::Intersect(bPlatforms[i]->rect, dummy->rect))
+							{
+								ok = false;
+								break;
+							}
+						}
+					}
+
+					if (ok)Castle = dummy;
+				}
+			}
+			else
+			{
+				Castle->move(level, nature_dir);
+				if (Castle->start.x <= 0)
+				{
+					Castle->start.x = 0;
+					Castle->set_edges();
+					nature_dir = dirs::stop;
+				}
+				if (indll::Intersect(Hero->rect, Castle->rect))LevelUp();
+			}
+		}
 	}
 
 	std::remove(tmp_file);
