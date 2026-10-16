@@ -282,10 +282,10 @@ void InitGame()
 	Intro = indll::FIELD::create(fields::intro, 0, 0);
 	Pause = indll::FIELD::create(fields::pause, 0, 0);
 
-	Sun.left = 700.0f;
-	Sun.right = 820.0f;
-	Sun.top = 80.0f;
-	Sun.bottom = 170.0f;
+	Sun.left = 100.0f + RandIt(0.0f, 700.0f);
+	Sun.right = Sun.left + 120.0f;
+	Sun.top = 80.0f + RandIt(0.0f, 40.0f);
+	Sun.bottom = Sun.top + 90.0f;
 	
 	//////////////////////////////////////
 
@@ -313,6 +313,125 @@ void InitGame()
 		}
 	bGrounds.clear();
 	
+	for (float sx = -scr_width; sx < 2.0f * scr_width; sx += scr_width)
+		bGrounds.push_back(indll::FIELD::create(fields::ground, sx, ground - 42.0f));
+
+	if (!bPlatforms.empty())
+		for (int i = 0; i < bPlatforms.size(); ++i)if (!FreeMem(&bPlatforms[i]))
+		{
+			LogErr(L"Error releasing bPlatforms in Init() function !");
+			ErrExit(eWindow);
+		}
+	bPlatforms.clear();
+
+	if (!bClouds.empty())
+		for (int i = 0; i < bClouds.size(); ++i)if (!FreeMem(&bClouds[i]))
+		{
+			LogErr(L"Error releasing bClouds in Init() function !");
+			ErrExit(eWindow);
+		}
+	bClouds.clear();
+
+	if (!bEvils.empty())for (size_t i = 0; i < bEvils.size(); ++i)if (!FreeMem(&bEvils[i]))
+	{
+		LogErr(L"Error releasing bClouds in Init() function !");
+		ErrExit(eWindow);
+	}
+	bEvils.clear();
+
+	delete Hero;
+	Hero = new indll::HERO(30.0f, ground - 130.0f);
+
+	if (!bShots.empty())
+		for (int i = 0; i < bShots.size(); ++i)if (!FreeMem(&bShots[i]))
+		{
+			LogErr(L"Error releasing bShots in Init() function !");
+			ErrExit(eWindow);
+		}
+	bShots.clear();
+
+	bAssets.clear();
+}
+void LevelUp()
+{
+	if (!level_skipped && Hero)
+	{
+		score += Hero->damage * (int)(level);
+
+		wchar_t txt[50]{ L"\0" };
+		int size{ 0 };
+
+		swprintf_s(txt, 50, L"БОНУС: %d", score);
+
+		for (int i = 0; i < 50; ++i)
+		{
+			if (txt[i] != '\0')++size;
+			else break;
+		}
+
+		if (bigText && txtBrush)
+		{
+			for (int i = 0; i < 200; ++i)
+			{
+				Draw->BeginDraw();
+				Draw->Clear(D2D1::ColorF(D2D1::ColorF::Khaki));
+				if (i % 10 == 0)
+					Draw->DrawTextW(txt, size, bigText,
+						D2D1::RectF(scr_width / 2.0f - 150.0f, scr_height / 2.0f - 50.0f, scr_width, scr_height), txtBrush);
+				Draw->EndDraw();
+				Sleep(20);
+			}
+
+			if (sound)mciSendString(L"play .\\res\\snd\\yuhu.wav", NULL, NULL, NULL);
+		}
+	}
+
+	Draw->BeginDraw();
+	Draw->DrawBitmap(bmpLevel, FULL_SCREEN);
+	Draw->EndDraw();
+
+	if (sound)
+	{
+		PlaySound(NULL, NULL, NULL);
+		PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
+	}
+	else Sleep(4000);
+
+	++level;
+	distance = 600.0f + level * 20.0f;
+	level_skipped = false;
+
+	Sun.left = 100.0f + RandIt(0.0f, 700.0f);
+	Sun.right = Sun.left + 120.0f;
+	Sun.top = 80.0f + RandIt(0.0f, 40.0f);
+	Sun.bottom = Sun.top + 90.0f;
+
+	//////////////////////////////////////
+
+	nature_dir = dirs::stop;
+
+	need_background_left = false;
+	need_background_right = false;
+
+	if (!bBackgrounds.empty())
+		for (int i = 0; i < bBackgrounds.size(); ++i)if (!FreeMem(&bBackgrounds[i]))
+		{
+			LogErr(L"Error releasing bBackgrounds in Init() function !");
+			ErrExit(eWindow);
+		}
+	bBackgrounds.clear();
+
+	for (float sx = -scr_width; sx < 2.0f * scr_width; sx += scr_width)
+		bBackgrounds.push_back(indll::FIELD::create(static_cast<fields>(RandIt(0, 1)), sx, 50.0f));
+
+	if (!bGrounds.empty())
+		for (int i = 0; i < bGrounds.size(); ++i)if (!FreeMem(&bGrounds[i]))
+		{
+			LogErr(L"Error releasing bGrounds in Init() function !");
+			ErrExit(eWindow);
+		}
+	bGrounds.clear();
+
 	for (float sx = -scr_width; sx < 2.0f * scr_width; sx += scr_width)
 		bGrounds.push_back(indll::FIELD::create(fields::ground, sx, ground - 42.0f));
 
@@ -526,7 +645,8 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 
 	case WM_TIMER:
 		if (pause)break;
-		--distance;
+		if (nature_dir == dirs::left)--distance;
+		else if (nature_dir == dirs::right)++distance;
 		break;
 
 	case WM_COMMAND:
@@ -553,7 +673,7 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 				pause = false;
 				break;
 			}
-			//LevelUp();
+			LevelUp();
 			break;
 
 		case mExit:
@@ -610,6 +730,56 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 			}
 			else if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
 			break;
+		}
+		break;
+
+	case WM_LBUTTONDOWN:
+		if (HIWORD(lParam) * y_scale <= 50)
+		{
+			if (LOWORD(lParam) * x_scale >= b1Rect.left && LOWORD(lParam) * x_scale <= b1Rect.right)
+			{
+				if (name_set)
+				{
+					if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+					break;
+				}
+				
+				if (sound)mciSendString(L"play .\\res\\snd\\select.wav", NULL, NULL, NULL);
+
+				if (DialogBox(bIns, MAKEINTRESOURCE(IDD_PLAYER), hwnd, &DlgProc) == IDOK)name_set = true;
+
+				break;
+			}
+			if (LOWORD(lParam) * x_scale >= b2Rect.left && LOWORD(lParam) * x_scale <= b2Rect.right)
+			{
+				mciSendString(L"play .\\res\\snd\\select.wav", NULL, NULL, NULL);
+
+				if (sound)
+				{
+					sound = false;
+					PlaySound(NULL, NULL, NULL);
+					break;
+				}
+				else
+				{
+					sound = true;
+					PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
+					break;
+				}
+			}
+		}
+		else
+		{
+			if (!pause)
+			{
+				pause = true;
+				break;
+			}
+			else
+			{
+				pause = false;
+				break;
+			}
 		}
 		break;
 
@@ -1687,6 +1857,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 			Draw->DrawLine(D2D1::Point2F(Hero->start.x + 20.0f, Hero->end.y + 2.0f),
 				D2D1::Point2F(Hero->start.x + Hero->lifes / 1.5f, Hero->end.y + 2.0f), txtBrush, 5.0f);
+
+			int size{ 0 };
+
+			for (int i = 0; i < 16; ++i)
+			{
+				if (current_player[i] != '\0')++size;
+				else break;
+			}
+			if (nrmText && txtBrush)Draw->DrawText(current_player, size, nrmText,
+				D2D1::RectF(Hero->start.x + 10.0f, Hero->start.y - 30.0f, Hero->end.x, Hero->start.y), txtBrush);
 		}
 
 		if (!bEvils.empty())
@@ -1796,6 +1976,28 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 				if (fade_out)break;
 			}
 
+		// STATUS TEXT **************************
+
+		if (midText && hgltBrush && Hero)
+		{
+			wchar_t stat_txt[120]{ L"\0" };
+
+			int size{ 0 };
+
+			swprintf_s(stat_txt, 100, L"ниво: %d, броня: %d, сила: %d, точки: %d, остават: %.3f", (int)(level),
+				Hero->armor, Hero->damage, score, (float)(distance / 100.0f));
+
+			for (int i = 0; i < 120; ++i)
+			{
+				if (stat_txt[i] != '\0')++size;
+				else break;
+			}
+
+			Draw->DrawText(stat_txt, size, midText, D2D1::RectF(10.0f, ground + 5.0f, scr_width, scr_height), hgltBrush);
+		}
+
+		/////////////////////////////////////////
+
 	//////////////////////////////////////////////////////////////
 
 		if (hero_killed)
@@ -1815,6 +2017,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 		Draw->EndDraw();
 
+		if (distance <= 0)LevelUp();
 	}
 
 	std::remove(tmp_file);
