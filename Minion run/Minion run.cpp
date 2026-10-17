@@ -398,7 +398,7 @@ void InitGame()
 
 	if (!bEvils.empty())for (size_t i = 0; i < bEvils.size(); ++i)if (!FreeMem(&bEvils[i]))
 	{
-		LogErr(L"Error releasing bClouds in Init() function !");
+		LogErr(L"Error releasing bEvils in Init() function !");
 		ErrExit(eWindow);
 	}
 	bEvils.clear();
@@ -525,7 +525,7 @@ void LevelUp()
 
 	if (!bEvils.empty())for (size_t i = 0; i < bEvils.size(); ++i)if (!FreeMem(&bEvils[i]))
 	{
-		LogErr(L"Error releasing bClouds in Init() function !");
+		LogErr(L"Error releasing bEvils in Init() function !");
 		ErrExit(eWindow);
 	}
 	bEvils.clear();
@@ -603,6 +603,306 @@ void HallofFame()
 	if (sound)mciSendString(L"play .\\res\\snd\\showrec.wav", NULL, NULL, NULL);
 
 	Sleep(4000);
+}
+void SaveGame()
+{
+	int result{ 0 };
+	CheckFile(save_file, &result);
+
+	if (result == FILE_EXIST)
+	{
+		if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+		if (MessageBox(bHwnd, L"Има предишна записана игра, която ще загубиш !\n\nНаистина ли я презаписваш ?", L"Презапис !",
+			MB_YESNO | MB_APPLMODAL | MB_ICONQUESTION) == IDNO)return;
+	}
+
+	std::wofstream save{ save_file };
+
+	save << hero_killed << std::endl;
+	save << level << std::endl;
+	save << score << std::endl;
+	save << distance << std::endl;
+	save << level_skipped << std::endl;
+
+	save << name_set << std::endl;
+	for (int i = 0; i < 16; ++i)save << static_cast<int>(current_player[i]) << std::endl;
+
+	save << Hero->start.x << std::endl;
+	save << Hero->start.y << std::endl;
+	save << Hero->lifes << std::endl;
+	save << Hero->armor << std::endl;
+	save << Hero->damage << std::endl;
+
+	save << bPlatforms.size() << std::endl;
+	if (!bPlatforms.empty())
+	{
+		for (int i = 0; i < bPlatforms.size(); ++i)
+		{
+			save << static_cast<int>(bPlatforms[i]->get_type()) << std::endl;
+			save << bPlatforms[i]->start.x << std::endl;
+			save << bPlatforms[i]->start.y << std::endl;
+		}
+	}
+
+	save << bEvils.size() << std::endl;
+	if (!bEvils.empty())
+	{
+		for (int i = 0; i < bEvils.size(); ++i)
+		{
+			save << static_cast<int>(bEvils[i]->get_type()) << std::endl;
+			save << bEvils[i]->start.x << std::endl;
+			save << bEvils[i]->start.y << std::endl;
+			save << bEvils[i]->lifes << std::endl;
+			save << bEvils[i]->armor << std::endl;
+			save << bEvils[i]->damage << std::endl;
+		}
+	}
+
+	save << bAssets.size() << std::endl;
+	if (!bAssets.empty())
+	{
+		for (int i = 0; i < bAssets.size(); ++i)
+		{
+			if (bAssets[i].type == assets::chest)
+			{
+				save << bAssets[i].position.left << std::endl;
+				save << bAssets[i].position.right << std::endl;
+				save << bAssets[i].position.top << std::endl;
+				save << bAssets[i].position.bottom << std::endl;
+
+			}
+		}
+	}
+
+	if(!Castle)save << 0 << std::endl;
+	else
+	{
+		save << 1 << std::endl;
+		save << Castle->start.x << std::endl;
+		save << Castle->start.y << std::endl;
+	}
+
+	save.close();
+
+	if (sound)mciSendString(L"play .\\res\\snd\\save.wav", NULL, NULL, NULL);
+
+	MessageBox(bHwnd, L"Играта е запазена !", L"Запис !", MB_OK | MB_APPLMODAL | MB_ICONINFORMATION);
+}
+void LoadGame()
+{
+	int result{ 0 };
+	CheckFile(save_file, &result);
+	if (result == FILE_NOT_EXIST)
+	{
+		if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+
+		MessageBox(bHwnd, L"Все още няма записана игра !\n\nПостарай се повече !",
+			L"Липсва файл !", MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION);
+
+		return;
+	}
+	else
+	{
+		if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+		if (MessageBox(bHwnd, L"Настоящага игра ще бъде загубена !\n\nНаистина ли я презаписваш ?", L"Презапис !",
+			MB_YESNO | MB_APPLMODAL | MB_ICONQUESTION) == IDNO)return;
+	}
+
+	nature_dir = dirs::stop;
+
+	need_background_left = false;
+	need_background_right = false;
+
+	if (!bBackgrounds.empty())
+		for (int i = 0; i < bBackgrounds.size(); ++i)if (!FreeMem(&bBackgrounds[i]))
+		{
+			LogErr(L"Error releasing bBackgrounds in Init() function !");
+			ErrExit(eWindow);
+		}
+	bBackgrounds.clear();
+
+	for (float sx = -scr_width; sx < 2.0f * scr_width; sx += scr_width)
+		bBackgrounds.push_back(indll::FIELD::create(static_cast<fields>(RandIt(0, 1)), sx, 50.0f));
+
+	if (!bGrounds.empty())
+		for (int i = 0; i < bGrounds.size(); ++i)if (!FreeMem(&bGrounds[i]))
+		{
+			LogErr(L"Error releasing bGrounds in Init() function !");
+			ErrExit(eWindow);
+		}
+	bGrounds.clear();
+
+	for (float sx = -scr_width; sx < 2.0f * scr_width; sx += scr_width)
+		bGrounds.push_back(indll::FIELD::create(fields::ground, sx, ground - 42.0f));
+
+	if (!bPlatforms.empty())
+		for (int i = 0; i < bPlatforms.size(); ++i)if (!FreeMem(&bPlatforms[i]))
+		{
+			LogErr(L"Error releasing bPlatforms in Init() function !");
+			ErrExit(eWindow);
+		}
+	bPlatforms.clear();
+
+	if (!bClouds.empty())
+		for (int i = 0; i < bClouds.size(); ++i)if (!FreeMem(&bClouds[i]))
+		{
+			LogErr(L"Error releasing bClouds in Init() function !");
+			ErrExit(eWindow);
+		}
+	bClouds.clear();
+
+	if (!bEvils.empty())for (size_t i = 0; i < bEvils.size(); ++i)if (!FreeMem(&bEvils[i]))
+	{
+		LogErr(L"Error releasing bEvils in Init() function !");
+		ErrExit(eWindow);
+	}
+	bEvils.clear();
+
+	delete Hero;
+	Hero = nullptr;
+	
+	if (!bShots.empty())
+		for (int i = 0; i < bShots.size(); ++i)if (!FreeMem(&bShots[i]))
+		{
+			LogErr(L"Error releasing bShots in Init() function !");
+			ErrExit(eWindow);
+		}
+	bShots.clear();
+
+	bAssets.clear();
+
+	if (Castle)
+		if (!FreeMem(&Castle))
+		{
+			LogErr(L"Error releasing Castle in Init() function !");
+			ErrExit(eWindow);
+		}
+
+	//////////////////////////////////////////////////////////////
+
+
+	std::wifstream save{ save_file };
+
+	save >> hero_killed;
+	if (hero_killed)GameOver();
+	save >> level;
+	save >> score;
+	save >> distance;
+	save >> level_skipped;
+
+	save >> name_set;
+	for (int i = 0; i < 16; ++i)
+	{
+		int letter{ 0 };
+		save >> letter; 
+		current_player[i] = static_cast<wchar_t>(letter);
+	}
+
+	if (!Hero)
+	{
+		float sx{ 0 };
+		float sy{ 0 };
+		int tlifes{ 0 };
+		int tarmor{ 0 };
+		int tdamage{ 0 };
+		
+		save >> sx;
+		save >> sy;
+		save >> tlifes;
+		save >> tarmor;
+		save >> tdamage;
+		
+		Hero = new indll::HERO(sx, sy);
+		Hero->lifes = tlifes;
+		Hero->lifes = tarmor;
+		Hero->lifes = tdamage;
+	}
+
+	save >> result;
+	if (result > 0)
+	{
+		for (int i = 0; i < result; ++i)
+		{
+			int ttype{ 0 };
+			float sx{ 0 };
+			float sy{ 0 };
+			
+			save >> ttype;
+			save >> sx;
+			save >> sy;
+		
+			bPlatforms.push_back(indll::FIELD::create(static_cast<fields>(ttype), sx, sy));
+		}
+	}
+
+	save >> result;
+	if (result > 0)
+	{
+		for (int i = 0; i < result; ++i)
+		{
+			int ttype{ 0 };
+			float sx{ 0 };
+			float sy{ 0 };
+			int tlifes{ 0 };
+			int tarmor{ 0 };
+			int tdamage{ 0 };
+
+			save >> ttype;
+			save >> sx;
+			save >> sy;
+			save >> tlifes;
+			save >> tarmor;
+			save >> tdamage;
+
+			bEvils.push_back(indll::EVILS::create(static_cast<evils>(ttype), sx, sy));
+
+			bEvils.back()->lifes = tlifes;
+			bEvils.back()->armor = tarmor;
+			bEvils.back()->damage = tdamage;
+		}
+	}
+	
+	save >> result;
+	if (result)
+	{
+		for (int i = 0; i < result; ++i)
+		{
+			float sx{ 0 };
+			float ex{ 0 };
+			float sy{ 0 };
+			float ey{ 0 };
+
+			save >> sx;
+			save >> ex;
+			save >> sy;
+			save >> ey;
+
+			bAssets.push_back(indll::FADING{});
+
+			bAssets.back().position.left = sx;
+			bAssets.back().position.right = ex;
+			bAssets.back().position.top = sy;
+			bAssets.back().position.bottom = ey;
+		}
+	}
+
+	save >> result;
+	if (result)
+	{
+		float sx{ 0 };
+		float sy{ 0 };
+		
+		save >> sx;
+		save >> sy;
+
+		Castle = indll::FIELD::create(fields::castle, sx, sy);
+	}
+	
+	save.close();
+
+	if (sound)mciSendString(L"play .\\res\\snd\\save.wav", NULL, NULL, NULL);
+
+	MessageBox(bHwnd, L"Играта е заредена !", L"Зареждане !", MB_OK | MB_APPLMODAL | MB_ICONINFORMATION);
 }
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
@@ -813,6 +1113,17 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 			SendMessage(hwnd, WM_CLOSE, NULL, NULL);
 			break;
 
+		case mSave:
+			pause = true;
+			SaveGame();
+			pause = false;
+			break;
+
+		case mLoad:
+			pause = true;
+			LoadGame();
+			pause = false;
+			break;
 
 		case mHoF:
 			pause = true;
